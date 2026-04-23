@@ -2,17 +2,43 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # 🔐 LOGIN GHCR (สำคัญมาก)
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # 🧱 BUILD IMAGE
+    - name: Build Docker image
+      run: |
+        docker build \
+          -t ghcr.io/${{ github.repository }}/ai-saas:latest \
+          -t ghcr.io/${{ github.repository }}/ai-saas:$(date +%s) \
+          .
+
+    # 🚀 PUSH IMAGE (latest + versioned)
+    - name: Push Docker image (latest)
+      run: docker push ghcr.io/${{ github.repository }}/ai-saas:latest
+
+    - name: Push Docker image (versioned)
+      run: |
+        docker images
+        docker push ghcr.io/${{ github.repository }}/ai-saas:$(date +%s)
