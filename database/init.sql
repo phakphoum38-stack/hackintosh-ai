@@ -1,0 +1,5 @@
+CREATE TABLE boot_logs (
+    id INTEGER PRIMARY KEY,
+    success INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
