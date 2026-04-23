@@ -22,26 +22,41 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
 
+    # ✅ FIX PATH
+    - name: Set PYTHONPATH
+      run: echo "PYTHONPATH=." >> $GITHUB_ENV
+
+    # 📁 FIX FOLDERS
+    - name: Create folders
+      run: |
+        mkdir -p models
+        mkdir -p EFI/OC
+
+    # 🧠 TRAIN AI
     - name: Train AI Model
-      run: python -m backend.core.trainer
+      run: PYTHONPATH=. python -m backend.core.trainer
 
-    - name: Create EFI folder
-      run: mkdir -p EFI/OC
-
+    # ⚙️ BUILD EFI
     - name: Build EFI
-      run: python -c "from backend.builder.efi_builder import build_efi; build_efi({'cpu':'Intel','gpu':'Intel','acpi_score':70,'gpu_score':60,'usb_score':80})"
+      run: |
+        PYTHONPATH=. python -c "from backend.builder.efi_builder import build_efi; build_efi({'cpu':'Intel','gpu':'Intel','acpi_score':70,'gpu_score':60,'usb_score':80})"
 
-    - name: Run VM Test (mock)
-      run: python -c "from vm.worker import run_qemu_boot; print(run_qemu_boot({'test':True}))"
+    # 🖥️ VM TEST
+    - name: Run VM Test
+      run: |
+        PYTHONPATH=. python -c "from vm.worker import run_qemu_boot; print(run_qemu_boot({'test':True}))"
 
+    # 📦 Upload Model
     - name: Upload Model
       uses: actions/upload-artifact@v4
       with:
         name: model
         path: models/latest.pth
 
+    # 📦 Upload EFI
     - name: Upload EFI
       uses: actions/upload-artifact@v4
       with:
         name: EFI
+        path: EFI/
         path: EFI/
