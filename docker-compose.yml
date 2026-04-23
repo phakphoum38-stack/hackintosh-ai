@@ -1,14 +1,16 @@
-version: "3"
+version: "3.9"
 
 services:
-  redis:
-    image: redis
-    ports:
-      - "6379:6379"
 
   api:
     build: .
     ports:
       - "8000:8000"
-    depends_on:
-      - redis
+
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+
+  redis:
+    image: redis
