@@ -1,9 +1,5 @@
-import psycopg2
+from sqlalchemy import create_engine
 
-def get_conn():
-    return psycopg2.connect(
-        dbname="hackintosh",
-        user="postgres",
-        password="postgres",
-        host="localhost"
-    )
+engine = create_engine(
+    "postgresql://postgres:postgres@localhost:5432/saas"
+)
