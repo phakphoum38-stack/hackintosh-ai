@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-trainer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gpu-trainer
+  template:
+    metadata:
+      labels:
+        app: gpu-trainer
+    spec:
+      containers:
+      - name: trainer
+        image: ghcr.io/your-repo/ai-saas:latest
+        command: ["python", "-m", "backend.core.trainer"]
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        env:
+        - name: MODEL_PATH
+          value: "/models"
