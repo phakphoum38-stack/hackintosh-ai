@@ -40,10 +40,16 @@ jobs:
         name: trained-model
         path: backend/model/
 
-    # 🚀 Deploy (จะ fail ถ้าไม่มี secret → ต้องตั้งก่อนใช้)
+    # 🧪 DEBUG ตรงนี้ 👇
+    - name: Debug SSH
+      run: |
+        echo "HOST=${{ secrets.SSH_HOST }}"
+        echo "USER=${{ secrets.SSH_USER }}"
+
+    # 🚀 Deploy
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.0.3
-      continue-on-error: true   # 🔥 กัน pipeline พัง
+      continue-on-error: true
       with:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
