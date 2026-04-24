@@ -16,12 +16,26 @@ def load_dataset():
         content = f.read().strip()
 
         if not content:
-            return []
+            return [], []
 
         data = json.loads(content)
 
-    # แปลงเป็น X, y สำหรับ training
-    texts = [item["text"] for item in data]
-    labels = [item["intent"] for item in data]
+    # 🔥 รองรับหลาย format กันพัง
+    texts = []
+    labels = []
+
+    for item in data:
+        if isinstance(item, dict):
+            if "text" in item and "intent" in item:
+                texts.append(item["text"])
+                labels.append(item["intent"])
+
+            elif "x" in item and "y" in item:
+                texts.append(item["x"])
+                labels.append(item["y"])
+
+        elif isinstance(item, list) and len(item) >= 2:
+            texts.append(str(item[0]))
+            labels.append(str(item[1]))
 
     return texts, labels
