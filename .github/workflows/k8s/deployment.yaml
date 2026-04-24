@@ -3,22 +3,19 @@ kind: Deployment
 metadata:
   name: ai-saas
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: ai-saas
+
   template:
     metadata:
       labels:
         app: ai-saas
+
     spec:
       containers:
-      - name: ai-saas
-        image: ghcr.io/YOUR_REPO/ai-saas:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: DATABASE_URL
-          value: "postgres://user:pass@postgres:5432/db"
-        - name: REDIS_URL
-          value: "redis://redis:6379"
+        - name: ai-saas
+          image: ghcr.io/xxx/ai-saas:latest
+          ports:
+            - containerPort: 8000
