@@ -3,30 +3,26 @@ name: AI SaaS Kubernetes Deploy
 on:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   build-deploy:
-
     runs-on: ubuntu-latest
 
     steps:
-
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v3
+    - name: Set tag
+      run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
     - name: Login to GHCR
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-    - name: Build Image
+    - name: Build & Push Image
       run: |
-        docker build -t ghcr.io/${{ github.repository }}/ai-saas:latest .
-
-    - name: Push Image
-      run: |
-        docker push ghcr.io/${{ github.repository }}/ai-saas:latest
+        docker build -t ghcr.io/${{ github.repository }}/ai-saas:$TAG .
+        docker push ghcr.io/${{ github.repository }}/ai-saas:$TAG
 
     - name: Deploy to Kubernetes
       uses: appleboy/ssh-action@v1.0.3
@@ -35,4 +31,5 @@ jobs:
         username: ${{ secrets.K8S_USER }}
         key: ${{ secrets.K8S_SSH_KEY }}
         script: |
-          kubectl rollout restart deployment ai-saas
+          kubectl set image deployment/ai-saas ai-saas=ghcr.io/${{ github.repository }}/ai-saas:$TAG
+          kubectl rollout status deployment/ai-saas
