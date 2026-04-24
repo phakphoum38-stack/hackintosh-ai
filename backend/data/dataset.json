@@ -1,26 +1,8 @@
 [
-  {
-    "text": "hello",
-    "intent": "greeting"
-  },
-  {
-    "text": "hi there",
-    "intent": "greeting"
-  },
-  {
-    "text": "how are you",
-    "intent": "status_check"
-  },
-  {
-    "text": "what is your name",
-    "intent": "bot_identity"
-  },
-  {
-    "text": "bye",
-    "intent": "goodbye"
-  },
-  {
-    "text": "help me",
-    "intent": "help_request"
-  }
+  {"text": "hello", "intent": "greeting"},
+  {"text": "hi", "intent": "greeting"},
+  {"text": "how are you", "intent": "status_check"},
+  {"text": "what is your name", "intent": "bot_identity"},
+  {"text": "bye", "intent": "goodbye"},
+  {"text": "help me", "intent": "help_request"}
 ]
