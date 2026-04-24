@@ -1,12 +1,27 @@
+import json
+import os
+
+DATA_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "data",
+    "dataset.json"
+)
+
 def load_dataset():
-    path = "YOUR_PATH_HERE.json"
+    if not os.path.exists(DATA_PATH):
+        raise FileNotFoundError(f"Dataset not found: {DATA_PATH}")
 
-    print("Loading dataset from:", path)
+    with open(DATA_PATH, "r", encoding="utf-8") as f:
+        content = f.read().strip()
 
-    with open(path, "r") as f:
-        content = f.read()
-        print("RAW DATA:", repr(content[:200]))
+        if not content:
+            return []
 
         data = json.loads(content)
 
-    return data
+    # แปลงเป็น X, y สำหรับ training
+    texts = [item["text"] for item in data]
+    labels = [item["intent"] for item in data]
+
+    return texts, labels
