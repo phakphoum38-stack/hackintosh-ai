@@ -1,0 +1,12 @@
+.git
+.gitignore
+__pycache__/
+*.pyc
+venv/
+.env
+node_modules/
+*.log
+
+# ❌ อย่าเอาเข้า image
+backend/model/
+EFI/
