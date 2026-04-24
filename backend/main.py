@@ -1,14 +1,53 @@
 from fastapi import FastAPI
-from backend.scheduler.job_router import router as job_router
-from backend.auth.routes import router as auth_router
-from backend.billing.webhook import router as billing_router
+from fastapi.responses import FileResponse, JSONResponse
+import os
 
-app = FastAPI(title="AI SaaS Platform")
+app = FastAPI()
 
-app.include_router(auth_router, prefix="/auth")
-app.include_router(job_router, prefix="/jobs")
-app.include_router(billing_router, prefix="/billing")
+# =========================
+# 🔥 โหลด EFI แบบ zip
+# =========================
+@app.get("/efi")
+def download_efi():
+    path = "/app/efi.zip"
+    if os.path.exists(path):
+        return FileResponse(
+            path,
+            filename="EFI.zip",
+            media_type="application/zip"
+        )
+    return JSONResponse(
+        status_code=404,
+        content={"error": "EFI not found"}
+    )
 
-@app.get("/")
-def root():
-    return {"status": "running"}
+# =========================
+# 🔥 ดูไฟล์ใน EFI
+# =========================
+@app.get("/efi/list")
+def list_efi():
+    base = "/app/EFI"
+    if not os.path.exists(base):
+        return JSONResponse(
+            status_code=404,
+            content={"error": "EFI not found"}
+        )
+
+    try:
+        return {
+            "files": os.listdir(base)
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+# =========================
+# 🔥 health check (K8s)
+# =========================
+@app.get("/health")
+def health():
+    return {
+        "status": "ok"
+    }
