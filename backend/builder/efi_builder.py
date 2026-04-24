@@ -1,12 +1,12 @@
-# backend/builder/efi_builder.py
-
 import os
 import json
-from builder.kext_resolver import resolve_kexts
-from builder.config_gen import generate_config
+
+# ✅ แก้ import ให้ถูก
+from backend.builder.kext_resolver import resolve_kexts
+from backend.builder.config_gen import generate_config
+
 
 def create_structure():
-
     paths = [
         "EFI/OC",
         "EFI/OC/ACPI",
@@ -16,6 +16,7 @@ def create_structure():
 
     for p in paths:
         os.makedirs(p, exist_ok=True)
+
 
 def build_efi(config):
 
@@ -27,7 +28,8 @@ def build_efi(config):
 
     create_structure()
 
-    with open("EFI/OC/config.plist", "w") as f:
+    # ✅ เขียนไฟล์ให้ถูกต้องขึ้น
+    with open("EFI/OC/config.plist", "w", encoding="utf-8") as f:
         f.write(str(plist))
 
     return {
