@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ai-saas
+  labels:
+    app: ai-saas
+
 spec:
   replicas: 1
   selector:
@@ -17,5 +20,35 @@ spec:
       containers:
         - name: ai-saas
           image: ghcr.io/xxx/ai-saas:latest
+          imagePullPolicy: Always
+
           ports:
             - containerPort: 8000
+
+          # =========================
+          # 🟢 READINESS PROBE
+          # =========================
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+          # =========================
+          # 🔴 LIVENESS PROBE
+          # =========================
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
