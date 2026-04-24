@@ -1,34 +1,16 @@
-import json
-import os
+import torch.nn as nn
 
-def load_dataset():
+class BootModel(nn.Module):
 
-    path = "database/boot_dataset.json"
+    def __init__(self):
+        super().__init__()
 
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Dataset not found: {path}")
+        self.net = nn.Sequential(
+            nn.Linear(3, 16),
+            nn.ReLU(),
+            nn.Linear(16, 1),
+            nn.Sigmoid()
+        )
 
-    with open(path, "r") as f:
-        data = json.load(f)
-
-    cleaned = []
-
-    for i, d in enumerate(data):
-
-        if "x" not in d or "y" not in d:
-            continue
-
-        x = list(d["x"])
-
-        # 🔥 บังคับให้มี 3 ค่า
-        if len(x) < 3:
-            x += [0] * (3 - len(x))   # pad
-        else:
-            x = x[:3]                # ตัดให้เหลือ 3
-
-        cleaned.append({
-            "x": x,
-            "y": d["y"]
-        })
-
-    return cleaned
+    def forward(self, x):
+        return self.net(x)
