@@ -3,9 +3,9 @@ kind: Service
 metadata:
   name: ai-saas-service
 spec:
-  type: LoadBalancer
   selector:
     app: ai-saas
   ports:
     - port: 80
       targetPort: 8000
+  type: ClusterIP
