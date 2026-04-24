@@ -1,14 +1,15 @@
 import torch
 from backend.core.model import BootModel
 from backend.core.dataset import load_dataset
+from backend.core.device import get_device
+
 
 def train():
 
+    device = get_device()
+
     data = load_dataset()
 
-    # ------------------------
-    # FIX: บังคับ x = 3 features
-    # ------------------------
     X = []
     for d in data:
         x = list(d["x"])
@@ -20,22 +21,16 @@ def train():
 
         X.append(x)
 
-    X = torch.tensor(X, dtype=torch.float32)
-    y = torch.tensor([d["y"] for d in data], dtype=torch.float32).view(-1, 1)
+    X = torch.tensor(X, dtype=torch.float32).to(device)
+    y = torch.tensor([d["y"] for d in data], dtype=torch.float32).view(-1, 1).to(device)
 
-    print("X shape:", X.shape)  # ต้องเป็น (N, 3)
+    print("X shape:", X.shape)
 
-    # ------------------------
-    # Model
-    # ------------------------
-    model = BootModel()
+    model = BootModel().to(device)
 
     opt = torch.optim.Adam(model.parameters(), lr=0.001)
     loss_fn = torch.nn.BCELoss()
 
-    # ------------------------
-    # Train
-    # ------------------------
     for epoch in range(20):
 
         pred = model(X)
