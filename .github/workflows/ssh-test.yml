@@ -1,0 +1,25 @@
+name: SSH Connection Test
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  test-ssh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test SSH Connection
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+
+          script: |
+            echo "✅ SSH CONNECT SUCCESS"
+            echo "📍 Server info:"
+            uname -a
+            whoami
+            pwd
