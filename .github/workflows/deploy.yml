@@ -1,10 +1,22 @@
-- name: SSH to server
-  uses: appleboy/ssh-action@v1.0.3
-  with:
-    host: ${{ secrets.SSH_HOST }}
-    username: ${{ secrets.SSH_USERNAME }}
-    key: ${{ secrets.SSH_KEY }}
-    port: 22
-    script: |
-      cd /var/www
-      git pull
+name: Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}   # ⚠️ แก้ชื่อให้ตรง
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            cd /var/www || exit 1
+            git pull
