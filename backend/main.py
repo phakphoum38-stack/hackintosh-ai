@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 import os
+import uvicorn
 
 app = FastAPI()
 
@@ -49,5 +50,14 @@ def list_efi():
 @app.get("/health")
 def health():
     return {
-        "status": "ok"
+        "status": "ok",
+        "service": "ai-saas",
+        "efi_exists": os.path.exists("/app/EFI"),
+        "zip_exists": os.path.exists("/app/efi.zip")
     }
+
+# =========================
+# 🚀 ENTRY POINT (IMPORTANT)
+# =========================
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
