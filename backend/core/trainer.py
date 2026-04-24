@@ -1,49 +1,34 @@
-import torch
-from backend.core.model import BootModel
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.linear_model import LogisticRegression
 from backend.core.dataset import load_dataset
-from backend.core.device import get_device
-
+import joblib
+import os
 
 def train():
+    texts, labels = load_dataset()
 
-    device = get_device()
+    print(f"Loaded samples: {len(texts)}")
 
-    data = load_dataset()
+    if len(texts) == 0:
+        print("⚠️ No training data. Exit safely.")
+        return
 
-    X = []
-    for d in data:
-        x = list(d["x"])
+    # กัน mismatch
+    if len(texts) != len(labels):
+        raise ValueError("Dataset mismatch: texts != labels")
 
-        if len(x) < 3:
-            x += [0] * (3 - len(x))
-        else:
-            x = x[:3]
+    vectorizer = CountVectorizer()
+    X = vectorizer.fit_transform(texts)
 
-        X.append(x)
+    model = LogisticRegression(max_iter=1000)
+    model.fit(X, labels)
 
-    X = torch.tensor(X, dtype=torch.float32).to(device)
-    y = torch.tensor([d["y"] for d in data], dtype=torch.float32).view(-1, 1).to(device)
+    os.makedirs("backend/model", exist_ok=True)
 
-    print("X shape:", X.shape)
+    joblib.dump(vectorizer, "backend/model/vectorizer.pkl")
+    joblib.dump(model, "backend/model/intent_model.pkl")
 
-    model = BootModel().to(device)
-
-    opt = torch.optim.Adam(model.parameters(), lr=0.001)
-    loss_fn = torch.nn.BCELoss()
-
-    for epoch in range(20):
-
-        pred = model(X)
-        loss = loss_fn(pred, y)
-
-        opt.zero_grad()
-        loss.backward()
-        opt.step()
-
-        print("epoch", epoch, "loss", loss.item())
-
-    torch.save(model.state_dict(), "models/latest.pth")
-
+    print("✅ Training completed successfully")
 
 if __name__ == "__main__":
     train()
