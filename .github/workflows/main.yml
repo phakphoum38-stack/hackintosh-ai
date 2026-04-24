@@ -1,76 +1,26 @@
-name: AI SaaS Full Production
+name: AI SaaS Full Pipeline
 
 on:
   push:
     branches: ["main"]
-  workflow_dispatch:
 
 jobs:
 
-# =========================
-# 🧠 TRAIN
-# =========================
   train:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-
       - run: pip install -r requirements.txt
-
       - run: PYTHONPATH=. python -m backend.core.trainer
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: model
-          path: models/latest.pth
-
-
-# =========================
-# ⚙️ BUILD EFI
-# =========================
-  build-efi:
-    runs-on: ubuntu-latest
-    needs: train
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: model
-          path: models
-
-      - name: Build EFI
-        run: |
-          PYTHONPATH=. python -c "from backend.builder.efi_builder import build_efi; build_efi({'cpu':'Intel','gpu':'Intel'})"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: EFI
-          path: EFI
-
-
-# =========================
-# 🐳 BUILD DOCKER (ใส่ EFI เข้าไป)
-# =========================
   docker:
     runs-on: ubuntu-latest
-    needs: [train, build-efi]
-
+    needs: train
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: EFI
-          path: EFI
-
-      - name: Set tag
-        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: Login GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -80,27 +30,19 @@ jobs:
       - name: Build & Push
         run: |
           docker buildx build \
-            --build-arg EFI_PATH=EFI \
             --push \
-            -t ghcr.io/${{ github.repository }}/ai-saas:$TAG \
             -t ghcr.io/${{ github.repository }}/ai-saas:latest \
             .
 
-
-# =========================
-# ☸️ DEPLOY K8S
-# =========================
   deploy:
     runs-on: ubuntu-latest
     needs: docker
-
     steps:
-      - name: Deploy to Kubernetes
+      - name: Deploy to K8s
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.K8S_HOST }}
           username: ${{ secrets.K8S_USER }}
           key: ${{ secrets.K8S_SSH_KEY }}
           script: |
-            kubectl set image deployment/ai-saas ai-saas=ghcr.io/${{ github.repository }}/ai-saas:${GITHUB_SHA::7}
-            kubectl rollout status deployment/ai-saas
+            kubectl rollout restart deployment ai-saas
