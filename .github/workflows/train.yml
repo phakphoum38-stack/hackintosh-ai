@@ -29,19 +29,20 @@ steps:
     name: trained-model
     path: backend/model/
 
-# 🧪 DEBUG
+# 🧪 DEBUG (ไม่โชว์ค่าจริง แต่เช็คว่ามีไหม)
 - name: Debug SSH
   run: |
-    echo "HOST=${{ secrets.SSH_HOST }}"
-    echo "USER=${{ secrets.SSH_USER }}"
+    if [ -z "${{ secrets.SSH_HOST }}" ]; then echo "❌ SSH_HOST empty"; else echo "✅ SSH_HOST OK"; fi
+    if [ -z "${{ secrets.SSH_USER }}" ]; then echo "❌ SSH_USER empty"; else echo "✅ SSH_USER OK"; fi
+    if [ -z "${{ secrets.SSH_KEY }}" ]; then echo "❌ SSH_KEY empty"; else echo "✅ SSH_KEY OK"; fi
 
-# 🔍 CHECK
-- name: Check SSH config
+# 🔍 VALIDATE (กันพังตั้งแต่ต้น)
+- name: Validate SSH secrets
   id: check_ssh
   run: |
-    if [ -z "${{ secrets.SSH_HOST }}" ]; then
+    if [ -z "${{ secrets.SSH_HOST }}" ] || [ -z "${{ secrets.SSH_USER }}" ] || [ -z "${{ secrets.SSH_KEY }}" ]; then
       echo "use_ssh=false" >> $GITHUB_OUTPUT
-      echo "❌ No SSH_HOST → skip deploy"
+      echo "❌ SSH not ready → skip deploy"
     else
       echo "use_ssh=true" >> $GITHUB_OUTPUT
       echo "✅ SSH ready"
@@ -58,7 +59,14 @@ steps:
     port: 22
     script: |
       echo "🚀 Deploying..."
-      cd /path/to/your/project || exit 1
+
+      # เปลี่ยน path ตรงนี้ให้เป็นของจริง
+      cd /var/www/myapp || exit 1
+
+      # ดึงโค้ดล่าสุด
       git pull
+
+      # อัปเดต dependency
       pip install -r requirements.txt
-      echo "✅ Deploy
+
+      echo "✅ Deploy success"
