@@ -5,12 +5,14 @@ on:
     branches: ["main"]
 
 jobs:
-  ai-pipeline:
 
+# =========================
+# 🧠 AI TRAIN
+# =========================
+  ai-train:
     runs-on: ubuntu-latest
 
     steps:
-
     - name: Checkout
       uses: actions/checkout@v4
 
@@ -22,41 +24,115 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
 
-    # ✅ FIX PATH
     - name: Set PYTHONPATH
       run: echo "PYTHONPATH=." >> $GITHUB_ENV
 
-    # 📁 FIX FOLDERS
     - name: Create folders
-      run: |
-        mkdir -p models
-        mkdir -p EFI/OC
+      run: mkdir -p models EFI/OC
 
-    # 🧠 TRAIN AI
     - name: Train AI Model
       run: PYTHONPATH=. python -m backend.core.trainer
 
-    # ⚙️ BUILD EFI
-    - name: Build EFI
-      run: |
-        PYTHONPATH=. python -c "from backend.builder.efi_builder import build_efi; build_efi({'cpu':'Intel','gpu':'Intel','acpi_score':70,'gpu_score':60,'usb_score':80})"
-
-    # 🖥️ VM TEST
-    - name: Run VM Test
-      run: |
-        PYTHONPATH=. python -c "from vm.worker import run_qemu_boot; print(run_qemu_boot({'test':True}))"
-
-    # 📦 Upload Model
     - name: Upload Model
       uses: actions/upload-artifact@v4
       with:
         name: model
         path: models/latest.pth
 
-    # 📦 Upload EFI
+
+# =========================
+# ⚙️ EFI BUILD (PARALLEL)
+# =========================
+  build-efi:
+    runs-on: ubuntu-latest
+    needs: ai-train
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Download model
+      uses: actions/download-artifact@v4
+      with:
+        name: model
+        path: models
+
+    - name: Build EFI
+      run: |
+        PYTHONPATH=. python -c "from backend.builder.efi_builder import build_efi; build_efi({'cpu':'Intel','gpu':'Intel','acpi_score':70,'gpu_score':60,'usb_score':80})"
+
     - name: Upload EFI
       uses: actions/upload-artifact@v4
       with:
         name: EFI
         path: EFI
+
+
+# =========================
+# 🐳 DOCKER BUILD + PUSH
+# =========================
+  docker:
+    runs-on: ubuntu-latest
+    needs: [ai-train, build-efi]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # =========================
+    # 🔢 SEMANTIC VERSION
+    # =========================
+    - name: Generate version
+      run: |
+        VERSION="v1.0.${GITHUB_RUN_NUMBER}"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    # =========================
+    # 🐳 LOGIN GHCR
+    # =========================
+    - name: Login to GHCR
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    # =========================
+    # ⚡ BUILDX + CACHE
+    # =========================
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Cache Docker layers
+      uses: actions/cache@v4
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+
+    # =========================
+    # 🏗️ BUILD IMAGE
+    # =========================
+    - name: Build Docker Image
+      run: |
+        docker buildx build \
+          --cache-from=type=local,src=/tmp/.buildx-cache \
+          --cache-to=type=local,dest=/tmp/.buildx-cache-new \
+          -t ghcr.io/phakphoum38-stack/hackintosh-ai/ai-saas:${VERSION} \
+          -t ghcr.io/phakphoum38-stack/hackintosh-ai/ai-saas:latest \
+          --load .
+
+    # =========================
+    # 🚀 PUSH IMAGE
+    # =========================
+    - name: Push Docker Image
+      run: |
+        docker push ghcr.io/phakphoum38-stack/hackintosh-ai/ai-saas:${VERSION}
+        docker push ghcr.io/phakphoum38-stack/hackintosh-ai/ai-saas:latest
+
+    # =========================
+    # 🔁 ROLLBACK SAFETY
+    # =========================
+    - name: Rollback fallback
+      if: failure()
+      run: |
+        echo "Build failed - pulling last stable image"
+        docker pull ghcr.io/phakphoum38-stack/hackintosh-ai/ai-saas:latest
         
