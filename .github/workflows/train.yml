@@ -10,17 +10,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 📦 1. โหลด repo
     - name: Checkout repo
       uses: actions/checkout@v4
 
-    # 🐍 2. Setup Python
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
 
-    # ⚡ 3. Cache pip
     - name: Cache pip
       uses: actions/cache@v4
       with:
@@ -29,27 +26,24 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    # 📥 4. Install dependencies
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # 🧠 5. Train model
     - name: Run trainer
       run: PYTHONPATH=. python -m backend.core.trainer
 
-    # 💾 6. Save model เป็น artifact (กันหาย)
     - name: Upload model
       uses: actions/upload-artifact@v4
       with:
         name: trained-model
         path: backend/model/
 
-    # 🚀 7. Deploy (จะรันเฉพาะตอนมี secrets ครบ)
+    # 🚀 Deploy (จะ fail ถ้าไม่มี secret → ต้องตั้งก่อนใช้)
     - name: Deploy via SSH
-      if: ${{ secrets.SSH_HOST != '' }}
       uses: appleboy/ssh-action@v1.0.3
+      continue-on-error: true   # 🔥 กัน pipeline พัง
       with:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
