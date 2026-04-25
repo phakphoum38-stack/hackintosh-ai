@@ -17,26 +17,24 @@ from backend.auth.routes import router as auth_router
 from backend.models.predict_log import PredictLog
 from backend.models.efi_job import EFIJob
 
-# 🔥 QUEUE + WORKER (SAFE LOAD)
-from rq import Queue, Retry
-from rq.job import Job
-from rq.registry import FailedJobRegistry
-
 # =========================
-# 🔥 SAFE REDIS INIT (กันพัง)
+# 🔥 REDIS MODE SWITCH
 # =========================
 REDIS_URL = os.getenv("REDIS_URL")
+USE_QUEUE = bool(REDIS_URL)
 
-if not REDIS_URL:
-    print("❌ REDIS_URL not found")
-    raise Exception("REDIS_URL is required")
+if USE_QUEUE:
+    print("🚀 Running in QUEUE MODE")
+    from redis import Redis
+    from rq import Queue, Retry
+    from rq.registry import FailedJobRegistry
 
-from redis import Redis
-redis_conn = Redis.from_url(REDIS_URL)
+    redis_conn = Redis.from_url(REDIS_URL)
+    queue = Queue("efi", connection=redis_conn)
+else:
+    print("⚠️ Running in FREE MODE (no Redis)")
 
-# =========================
-# 🔥 IMPORT TASK (หลัง Redis)
-# =========================
+# 🔥 import task (ใช้ได้ทั้ง 2 mode)
 from backend.worker.tasks import build_efi_task
 
 # =========================
@@ -44,20 +42,8 @@ from backend.worker.tasks import build_efi_task
 # =========================
 app = FastAPI()
 
-# =========================
-# 🔥 INIT DB
-# =========================
 init_db()
-
-# =========================
-# 🔐 INCLUDE AUTH ROUTER
-# =========================
 app.include_router(auth_router)
-
-# =========================
-# 🔥 QUEUE INIT
-# =========================
-queue = Queue("efi", connection=redis_conn)
 
 # =========================
 # 🤖 REQUEST SCHEMA
@@ -133,7 +119,7 @@ def history(
     ]
 
 # =========================
-# 🧱 EFI BUILD
+# 🧱 EFI BUILD (AUTO MODE)
 # =========================
 @app.post("/efi/build")
 def build_efi(
@@ -150,17 +136,32 @@ def build_efi(
     db.commit()
     db.refresh(job)
 
-    # 🔥 enqueue job
-    queue.enqueue(
-        build_efi_task,
-        job.id,
-        retry=Retry(max=3, interval=[10, 30, 60])
-    )
+    # =========================
+    # 🚀 QUEUE MODE (PRO)
+    # =========================
+    if USE_QUEUE:
+        queue.enqueue(
+            build_efi_task,
+            job.id
+        )
 
-    return {
-        "job_id": job.id,
-        "status": "queued"
-    }
+        return {
+            "job_id": job.id,
+            "status": "queued",
+            "mode": "queue"
+        }
+
+    # =========================
+    # 🚀 FREE MODE (SYNC)
+    # =========================
+    else:
+        build_efi_task(job.id)
+
+        return {
+            "job_id": job.id,
+            "status": "completed",
+            "mode": "sync"
+        }
 
 # =========================
 # 📊 EFI STATUS
@@ -232,11 +233,16 @@ def download_efi(
     }
 
 # =========================
-# 🧪 DEBUG QUEUE
+# 🧪 DEBUG QUEUE (SAFE)
 # =========================
 @app.get("/debug/queue")
 def debug_queue():
-    q = Queue("efi", connection=redis_conn)
+    if not USE_QUEUE:
+        return {"mode": "free", "message": "queue disabled"}
+
+    from rq.registry import FailedJobRegistry
+
+    q = queue
     failed_registry = FailedJobRegistry(queue=q)
 
     return {
