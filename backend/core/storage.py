@@ -1,24 +1,20 @@
-import os
 import boto3
-
-AWS_REGION = os.getenv("AWS_REGION")
-S3_BUCKET = os.getenv("S3_BUCKET")
+import os
 
 s3 = boto3.client(
     "s3",
-    region_name=AWS_REGION,
+    region_name=os.getenv("AWS_REGION"),
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
 )
 
+BUCKET = os.getenv("AWS_BUCKET")
 
-def upload_file(local_path: str, s3_key: str):
 
-    s3.upload_file(
-        local_path,
-        S3_BUCKET,
-        s3_key,
-        ExtraArgs={"ACL": "public-read"}  # หรือเอาออกถ้า private
-    )
+def upload_file(file_path: str, key: str) -> str:
+    if not os.path.exists(file_path):
+        raise Exception(f"File not found: {file_path}")
 
-    return f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{s3_key}"
+    s3.upload_file(file_path, BUCKET, key)
+
+    return f"https://{BUCKET}.s3.{os.getenv('AWS_REGION')}.amazonaws.com/{key}"
