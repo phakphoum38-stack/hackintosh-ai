@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import os
@@ -38,6 +38,14 @@ queue = Queue("efi", connection=redis_conn)
 # =========================
 class PredictRequest(BaseModel):
     input_text: str
+
+# =========================
+# 🖥️ DASHBOARD UI (เพิ่มใหม่)
+# =========================
+@app.get("/")
+def dashboard():
+    path = os.path.join(os.getcwd(), "dashboard.html")
+    return FileResponse(path)
 
 # =========================
 # 🤖 AI PREDICT + SAVE DB
@@ -86,7 +94,7 @@ def history(
     ]
 
 # =========================
-# 🧱 EFI BUILD (FIXED)
+# 🧱 EFI BUILD
 # =========================
 @app.post("/efi/build")
 def build_efi(
@@ -103,7 +111,7 @@ def build_efi(
     db.commit()
     db.refresh(job)
 
-    # 🔥 enqueue เข้า worker
+    # 🔥 enqueue worker + retry
     queue.enqueue(
         build_efi_task,
         job.id,
@@ -116,7 +124,7 @@ def build_efi(
     }
 
 # =========================
-# 📊 EFI STATUS (UPGRADE)
+# 📊 EFI STATUS
 # =========================
 @app.get("/efi/status/{job_id}")
 def get_status(
@@ -139,6 +147,29 @@ def get_status(
         "result": job.result_path,
         "error": job.error
     }
+
+# =========================
+# 📊 EFI HISTORY (เพิ่มใหม่)
+# =========================
+@app.get("/efi/history")
+def efi_history(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    jobs = db.query(EFIJob).filter(
+        EFIJob.user_id == user["user_id"]
+    ).order_by(EFIJob.id.desc()).all()
+
+    return [
+        {
+            "job_id": j.id,
+            "status": j.status,
+            "progress": j.progress,
+            "result": j.result_path,
+            "error": j.error
+        }
+        for j in jobs
+    ]
 
 # =========================
 # 📥 DOWNLOAD (S3 URL)
@@ -200,7 +231,7 @@ def status():
         "service": "ai-saas",
         "status": "running",
         "queue": "efi",
-        "api_version": "3.0.0"
+        "api_version": "3.1.0"
     }
 
 # =========================
