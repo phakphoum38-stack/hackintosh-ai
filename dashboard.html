@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EFI Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+<div class="max-w-4xl mx-auto p-6">
+
+  <h1 class="text-3xl font-bold mb-6">🚀 EFI Builder Dashboard</h1>
+
+  <!-- BUILD BUTTON -->
+  <button onclick="buildEFI()" 
+    class="bg-blue-600 text-white px-4 py-2 rounded mb-6">
+    Build EFI
+  </button>
+
+  <!-- JOB LIST -->
+  <div id="jobs" class="space-y-4"></div>
+
+</div>
+
+<script>
+const API = "https://hackintosh-ai-2.onrender.com"
+
+// 🔐 ใส่ token ของคุณ
+const TOKEN = "YOUR_JWT_TOKEN"
+
+async function buildEFI() {
+  const res = await fetch(`${API}/efi/build`, {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + TOKEN
+    }
+  })
+
+  const data = await res.json()
+  loadJobs([data.job_id])
+}
+
+async function getStatus(jobId) {
+  const res = await fetch(`${API}/efi/status/${jobId}`, {
+    headers: {
+      "Authorization": "Bearer " + TOKEN
+    }
+  })
+
+  return await res.json()
+}
+
+function renderJob(job) {
+  return `
+    <div class="bg-white p-4 rounded shadow">
+      <div class="flex justify-between">
+        <div>
+          <b>Job #${job.job_id}</b>
+          <div>Status: ${job.status}</div>
+        </div>
+        <div>${job.progress || 0}%</div>
+      </div>
+
+      <div class="w-full bg-gray-200 rounded h-3 mt-2">
+        <div class="bg-green-500 h-3 rounded"
+             style="width:${job.progress || 0}%"></div>
+      </div>
+
+      ${job.result ? `
+        <a href="${job.result}" target="_blank"
+           class="text-blue-600 mt-2 block">
+           ⬇ Download
+        </a>
+      ` : ""}
+
+      ${job.error ? `
+        <div class="text-red-500 mt-2">
+          ❌ ${job.error}
+        </div>
+      ` : ""}
+    </div>
+  `
+}
+
+async function loadJobs(jobIds) {
+  const container = document.getElementById("jobs")
+
+  async function refresh() {
+    let html = ""
+
+    for (let id of jobIds) {
+      const job = await getStatus(id)
+      html += renderJob(job)
+    }
+
+    container.innerHTML = html
+  }
+
+  refresh()
+  setInterval(refresh, 2000) // 🔥 realtime
+}
+</script>
+
+</body>
+</html>
