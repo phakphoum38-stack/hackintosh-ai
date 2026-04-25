@@ -11,3 +11,6 @@ redis
 boto3
 python-dotenv
 PyJWT
+PyJWT
+passlib[bcrypt]
+python-multipart
