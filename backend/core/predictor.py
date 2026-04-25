@@ -1,9 +1,8 @@
-import joblib
+def predict(input_text: str):
 
-vectorizer = joblib.load("backend/model/vectorizer.pkl")
-model = joblib.load("backend/model/intent_model.pkl")
-
-def predict(text: str):
-    X = vectorizer.transform([text])
-    intent = model.predict(X)[0]
-    return intent
+    # 🔥 ใส่ model จริงตรงนี้ได้เลย
+    return {
+        "cpu": "intel",
+        "gpu": "amd",
+        "kexts": ["Lilu", "WhateverGreen"]
+    }
