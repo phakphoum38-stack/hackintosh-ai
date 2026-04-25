@@ -43,8 +43,6 @@ async function login() {
 
   if (data.access_token) {
     localStorage.setItem("token", data.access_token)
-
-    // 🚀 ไป dashboard
     window.location.href = "/dashboard"
   } else {
     document.getElementById("error").innerText = "Login failed"
