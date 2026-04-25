@@ -4,3 +4,5 @@ redis
 numpy
 scikit-learn
 joblib
+sqlalchemy
+psycopg2-binary
