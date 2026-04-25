@@ -1,11 +1,27 @@
 import jwt
-from datetime import datetime, timedelta
+import datetime
 
-SECRET = "SECRET_KEY"
+SECRET_KEY = "change-this-secret"
+ALGORITHM = "HS256"
 
-def create_token(data: dict):
-
+# =========================
+# 🔐 CREATE TOKEN
+# =========================
+def create_token(data: dict, expires_minutes: int = 60):
     payload = data.copy()
-    payload["exp"] = datetime.utcnow() + timedelta(days=1)
+    payload["exp"] = datetime.datetime.utcnow() + datetime.timedelta(minutes=expires_minutes)
 
-    return jwt.encode(payload, SECRET, algorithm="HS256")
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return token
+
+# =========================
+# 🔓 VERIFY TOKEN
+# =========================
+def verify_token(token: str):
+    try:
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return decoded
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
