@@ -3,6 +3,5 @@ fastapi
 uvicorn
 redis
 numpy
-
 scikit-learn
 joblib
