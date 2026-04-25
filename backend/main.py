@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import os
@@ -14,12 +14,24 @@ from backend.core.init_db import init_db
 from backend.models.predict_log import PredictLog
 from backend.models.efi_job import EFIJob
 
+# 🔥 QUEUE + WORKER
+from backend.core.queue import redis_conn
+from rq import Queue, Retry
+from rq.job import Job
+from rq.registry import FailedJobRegistry
+from backend.worker.tasks import build_efi_task
+
 app = FastAPI()
 
 # =========================
 # 🔥 INIT DB
 # =========================
 init_db()
+
+# =========================
+# 🔥 QUEUE INIT
+# =========================
+queue = Queue("efi", connection=redis_conn)
 
 # =========================
 # 🤖 REQUEST SCHEMA
@@ -36,7 +48,7 @@ def predict(
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
-    result_text = req.input_text[::-1]  # 🔥 AI demo
+    result_text = req.input_text[::-1]
 
     log = PredictLog(
         user_id=user["user_id"],
@@ -74,7 +86,7 @@ def history(
     ]
 
 # =========================
-# 🧱 EFI BUILD
+# 🧱 EFI BUILD (FIXED)
 # =========================
 @app.post("/efi/build")
 def build_efi(
@@ -83,20 +95,28 @@ def build_efi(
 ):
     job = EFIJob(
         user_id=user["user_id"],
-        status="building"
+        status="queued",
+        progress=0
     )
 
     db.add(job)
     db.commit()
     db.refresh(job)
 
+    # 🔥 enqueue เข้า worker
+    queue.enqueue(
+        build_efi_task,
+        job.id,
+        retry=Retry(max=3, interval=[10, 30, 60])
+    )
+
     return {
         "job_id": job.id,
-        "status": job.status
+        "status": "queued"
     }
 
 # =========================
-# 📊 EFI STATUS
+# 📊 EFI STATUS (UPGRADE)
 # =========================
 @app.get("/efi/status/{job_id}")
 def get_status(
@@ -115,45 +135,61 @@ def get_status(
     return {
         "job_id": job.id,
         "status": job.status,
-        "result": job.result_path
+        "progress": job.progress,
+        "result": job.result_path,
+        "error": job.error
     }
 
 # =========================
-# 📦 DOWNLOAD EFI ZIP
+# 📥 DOWNLOAD (S3 URL)
 # =========================
-@app.get("/efi")
-def download_efi():
-    path = "/app/efi.zip"
-    if os.path.exists(path):
-        return FileResponse(
-            path,
-            filename="EFI.zip",
-            media_type="application/zip"
-        )
-    return JSONResponse(
-        status_code=404,
-        content={"error": "EFI not found"}
-    )
+@app.get("/efi/download/{job_id}")
+def download_efi(
+    job_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
+    job = db.query(EFIJob).filter(
+        EFIJob.id == job_id,
+        EFIJob.user_id == user["user_id"]
+    ).first()
+
+    if not job or not job.result_path:
+        return {"error": "file not ready"}
+
+    return {
+        "download_url": job.result_path
+    }
 
 # =========================
-# 📂 LIST EFI FILES
+# 🧪 DEBUG QUEUE
 # =========================
-@app.get("/efi/list")
-def list_efi():
-    base = "/app/EFI"
-    if not os.path.exists(base):
-        return JSONResponse(
-            status_code=404,
-            content={"error": "EFI not found"}
-        )
+@app.get("/debug/queue")
+def debug_queue():
+    q = Queue("efi", connection=redis_conn)
+    failed_registry = FailedJobRegistry(queue=q)
 
+    return {
+        "waiting_jobs": q.count,
+        "failed_jobs": failed_registry.get_job_ids()
+    }
+
+# =========================
+# 🧪 DEBUG JOB
+# =========================
+@app.get("/debug/job/{job_id}")
+def debug_job(job_id: str):
     try:
-        return {"files": os.listdir(base)}
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)}
-        )
+        job = Job.fetch(job_id, connection=redis_conn)
+
+        return {
+            "status": job.get_status(),
+            "result": job.result,
+            "error": job.exc_info
+        }
+
+    except Exception:
+        return {"error": "job not found"}
 
 # =========================
 # 📊 STATUS
@@ -163,9 +199,8 @@ def status():
     return {
         "service": "ai-saas",
         "status": "running",
-        "efi_exists": os.path.exists("/app/EFI"),
-        "zip_exists": os.path.exists("/app/efi.zip"),
-        "api_version": "2.0.0"
+        "queue": "efi",
+        "api_version": "3.0.0"
     }
 
 # =========================
@@ -173,10 +208,7 @@ def status():
 # =========================
 @app.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "service": "ai-saas"
-    }
+    return {"status": "ok"}
 
 # =========================
 # 🚀 ENTRY POINT
