@@ -6,3 +6,5 @@ scikit-learn
 joblib
 sqlalchemy
 psycopg2-binary
+rq
+redis
