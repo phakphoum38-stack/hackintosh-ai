@@ -1,13 +1,24 @@
 import os
 from redis import Redis
-from rq import Worker, Queue, Connection
+from rq import Worker, Queue
 
+# =========================
+# 🔥 QUEUE CONFIG
+# =========================
 listen = ["efi"]
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 conn = Redis.from_url(redis_url)
 
+# =========================
+# 🚀 START WORKER
+# =========================
 if __name__ == "__main__":
-    with Connection(conn):
-        worker = Worker(map(Queue, listen))
-        worker.work()
+
+    queues = [Queue(name, connection=conn) for name in listen]
+
+    worker = Worker(queues, connection=conn)
+
+    print("🚀 Worker started... waiting for jobs")
+
+    worker.work()
