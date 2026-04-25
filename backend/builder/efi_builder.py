@@ -6,6 +6,9 @@ import zipfile
 from backend.builder.kext_resolver import resolve_kexts
 from backend.builder.config_gen import generate_config
 
+# ☁️ S3
+from backend.core.storage import upload_file
+
 
 # =========================
 # 📁 CREATE EFI STRUCTURE
@@ -39,7 +42,10 @@ def zip_efi(base_path, output_zip):
 # =========================
 # 🚀 BUILD EFI (MAIN)
 # =========================
-def build_efi(job_id: int, config: dict):
+def build_efi(job_id: int, config: dict, user_id: int = None):
+
+    base_path = f"/tmp/efi_build_{job_id}"
+    output_zip = f"/tmp/efi_{job_id}.zip"
 
     try:
         print(f"🧠 Resolving kexts for job {job_id}...")
@@ -49,18 +55,15 @@ def build_efi(job_id: int, config: dict):
         plist = generate_config(config, kexts)
 
         # =========================
-        # 📁 แยกโฟลเดอร์ต่อ job
+        # 🧹 clean old build
         # =========================
-        base_path = f"/tmp/efi_build_{job_id}"
-
-        # ลบของเก่า (กันชน)
         if os.path.exists(base_path):
             shutil.rmtree(base_path)
 
         create_structure(base_path)
 
         # =========================
-        # 📝 เขียน config.plist
+        # 📝 write config.plist
         # =========================
         config_path = f"{base_path}/EFI/OC/config.plist"
 
@@ -70,13 +73,41 @@ def build_efi(job_id: int, config: dict):
         # =========================
         # 📦 zip output
         # =========================
-        output_zip = f"/tmp/efi_{job_id}.zip"
         zip_efi(base_path, output_zip)
 
-        print(f"[✓] EFI built: {output_zip}")
+        print(f"[✓] EFI built locally: {output_zip}")
 
-        return output_zip  # 🔥 สำคัญ (worker ใช้)
+        # =========================
+        # ☁️ upload to S3
+        # =========================
+        if user_id:
+            s3_key = f"efi/{user_id}/{job_id}.zip"
+        else:
+            s3_key = f"efi/{job_id}.zip"
+
+        print("☁️ Uploading to S3...")
+        s3_url = upload_file(output_zip, s3_key)
+
+        print(f"[✓] Uploaded to S3: {s3_url}")
+
+        return s3_url  # 🔥 ส่ง URL กลับ worker
 
     except Exception as e:
         print(f"[ERROR] EFI build failed: {e}")
         raise e
+
+    finally:
+        # =========================
+        # 🧹 cleanup tmp
+        # =========================
+        try:
+            if os.path.exists(base_path):
+                shutil.rmtree(base_path)
+
+            if os.path.exists(output_zip):
+                os.remove(output_zip)
+
+            print("🧹 Cleaned tmp files")
+
+        except Exception as cleanup_error:
+            print(f"[WARN] Cleanup failed: {cleanup_error}")
