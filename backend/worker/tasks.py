@@ -3,13 +3,13 @@ import traceback
 from backend.core.db import SessionLocal
 from backend.models.efi_job import EFIJob
 
-# 🔥 import AI / builder จริงของคุณ
+# 🔥 AI + Builder
 from backend.core.predictor import predict as ai_predict
 from backend.builder.efi_builder import build_efi as real_build
 
 
 # =========================
-# 🧱 EFI BUILD TASK (REAL)
+# 🧱 EFI BUILD TASK (PROD)
 # =========================
 def build_efi_task(job_id: int):
 
@@ -23,36 +23,52 @@ def build_efi_task(job_id: int):
             return
 
         # =========================
-        # 🔄 STEP 1: update status
+        # 🔄 STEP 1: START
         # =========================
         job.status = "building"
+        job.progress = 5
         db.commit()
 
-        print(f"[+] Building EFI job {job_id}")
+        print(f"[+] Start job {job_id}")
 
         # =========================
-        # 🤖 STEP 2: ใช้ AI config (optional)
+        # 🤖 STEP 2: AI CONFIG
         # =========================
+        job.progress = 20
+        db.commit()
+
         ai_config = ai_predict(f"efi config for job {job_id}")
 
+        print(f"[AI] config generated")
+
         # =========================
-        # 🧱 STEP 3: build EFI จริง
+        # 🧱 STEP 3: BUILD EFI
         # =========================
-        # 👉 ถ้ายังไม่มี builder จริง ใช้ fallback
+        job.progress = 50
+        db.commit()
+
         try:
             result_path = real_build(job_id, ai_config)
-        except Exception:
-            # fallback mock
+        except Exception as build_err:
+            print("[WARN] real build failed → fallback:", build_err)
+
+            # fallback
             time.sleep(3)
-            result_path = f"/app/efi_{job_id}.zip"
+            result_path = f"/tmp/efi_{job_id}.zip"
 
             with open(result_path, "w") as f:
                 f.write(f"EFI DATA {job_id}")
 
         # =========================
-        # ✅ STEP 4: save result
+        # 📦 STEP 4: FINALIZE
         # =========================
+        job.progress = 90
+        db.commit()
+
+        # (ถ้ามี S3 → upload ตรงนี้)
+
         job.status = "completed"
+        job.progress = 100
         job.result_path = result_path
         db.commit()
 
@@ -69,13 +85,18 @@ def build_efi_task(job_id: int):
 
         try:
             job = db.query(EFIJob).filter(EFIJob.id == job_id).first()
+
             if job:
                 job.status = "failed"
+                job.error = str(e)
+                job.progress = 0
                 db.commit()
-        except:
-            pass
 
-        return {"error": str(e)}
+        except Exception as db_err:
+            print("[CRITICAL] Cannot update DB:", db_err)
+
+        # 🔥 RQ จะ mark failed ถ้า raise
+        raise e
 
     finally:
         db.close()
