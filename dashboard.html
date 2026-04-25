@@ -8,7 +8,15 @@
 
 <div class="max-w-4xl mx-auto p-6">
 
-  <h1 class="text-3xl font-bold mb-6">🚀 EFI Builder Dashboard</h1>
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold">🚀 EFI Builder Dashboard</h1>
+
+    <!-- 🔥 Logout -->
+    <button onclick="logout()" 
+      class="bg-red-500 text-white px-3 py-1 rounded">
+      Logout
+    </button>
+  </div>
 
   <!-- BUILD BUTTON -->
   <button onclick="buildEFI()" 
@@ -24,8 +32,18 @@
 <script>
 const API = "https://hackintosh-ai-2.onrender.com"
 
-// 🔐 ใส่ token ของคุณ
-const TOKEN = "YOUR_JWT_TOKEN"
+// 🔥 ใช้ token จาก login
+const TOKEN = localStorage.getItem("token")
+
+// 🔐 ถ้าไม่มี token → กลับ login
+if (!TOKEN) {
+  window.location.href = "/login"
+}
+
+function logout() {
+  localStorage.removeItem("token")
+  window.location.href = "/login"
+}
 
 async function buildEFI() {
   const res = await fetch(`${API}/efi/build`, {
@@ -81,6 +99,17 @@ function renderJob(job) {
   `
 }
 
+async function loadHistory() {
+  const res = await fetch(`${API}/efi/history`, {
+    headers: {
+      "Authorization": "Bearer " + TOKEN
+    }
+  })
+
+  const jobs = await res.json()
+  loadJobs(jobs.map(j => j.job_id))
+}
+
 async function loadJobs(jobIds) {
   const container = document.getElementById("jobs")
 
@@ -96,8 +125,11 @@ async function loadJobs(jobIds) {
   }
 
   refresh()
-  setInterval(refresh, 2000) // 🔥 realtime
+  setInterval(refresh, 2000)
 }
+
+// 🔥 โหลด history ตอนเปิดหน้า
+loadHistory()
 </script>
 
 </body>
