@@ -10,3 +10,4 @@ rq
 redis
 boto3
 python-dotenv
+PyJWT
