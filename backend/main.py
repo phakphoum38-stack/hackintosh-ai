@@ -10,20 +10,38 @@ from backend.core.db import get_db
 from backend.core.middleware import get_current_user
 from backend.core.init_db import init_db
 
-# 🔐 AUTH ROUTER (A)
+# 🔐 AUTH ROUTER
 from backend.auth.routes import router as auth_router
 
 # 📦 Models
 from backend.models.predict_log import PredictLog
 from backend.models.efi_job import EFIJob
 
-# 🔥 QUEUE + WORKER
-from backend.core.queue import redis_conn
+# 🔥 QUEUE + WORKER (SAFE LOAD)
 from rq import Queue, Retry
 from rq.job import Job
 from rq.registry import FailedJobRegistry
+
+# =========================
+# 🔥 SAFE REDIS INIT (กันพัง)
+# =========================
+REDIS_URL = os.getenv("REDIS_URL")
+
+if not REDIS_URL:
+    print("❌ REDIS_URL not found")
+    raise Exception("REDIS_URL is required")
+
+from redis import Redis
+redis_conn = Redis.from_url(REDIS_URL)
+
+# =========================
+# 🔥 IMPORT TASK (หลัง Redis)
+# =========================
 from backend.worker.tasks import build_efi_task
 
+# =========================
+# 🚀 APP INIT
+# =========================
 app = FastAPI()
 
 # =========================
@@ -32,7 +50,7 @@ app = FastAPI()
 init_db()
 
 # =========================
-# 🔥 INCLUDE AUTH ROUTER (A)
+# 🔐 INCLUDE AUTH ROUTER
 # =========================
 app.include_router(auth_router)
 
@@ -48,29 +66,28 @@ class PredictRequest(BaseModel):
     input_text: str
 
 # =========================
-# 🔄 ROOT → LOGIN (D)
+# 🔄 ROOT → LOGIN
 # =========================
 @app.get("/")
 def root():
     return RedirectResponse(url="/login")
 
 # =========================
-# 🔐 LOGIN PAGE (B)
+# 🔐 LOGIN PAGE
 # =========================
 @app.get("/login")
 def login_page():
     return FileResponse("login.html")
 
 # =========================
-# 🖥️ DASHBOARD PAGE (C)
+# 🖥️ DASHBOARD PAGE
 # =========================
 @app.get("/dashboard")
 def dashboard_page():
-    path = os.path.join(os.getcwd(), "dashboard.html")
-    return FileResponse(path)
+    return FileResponse("dashboard.html")
 
 # =========================
-# 🤖 AI PREDICT + SAVE DB
+# 🤖 AI PREDICT
 # =========================
 @app.post("/predict")
 def predict(
@@ -133,6 +150,7 @@ def build_efi(
     db.commit()
     db.refresh(job)
 
+    # 🔥 enqueue job
     queue.enqueue(
         build_efi_task,
         job.id,
@@ -224,35 +242,6 @@ def debug_queue():
     return {
         "waiting_jobs": q.count,
         "failed_jobs": failed_registry.get_job_ids()
-    }
-
-# =========================
-# 🧪 DEBUG JOB
-# =========================
-@app.get("/debug/job/{job_id}")
-def debug_job(job_id: str):
-    try:
-        job = Job.fetch(job_id, connection=redis_conn)
-
-        return {
-            "status": job.get_status(),
-            "result": job.result,
-            "error": job.exc_info
-        }
-
-    except Exception:
-        return {"error": "job not found"}
-
-# =========================
-# 📊 STATUS
-# =========================
-@app.get("/status")
-def status():
-    return {
-        "service": "ai-saas",
-        "status": "running",
-        "queue": "efi",
-        "api_version": "3.2.0"
     }
 
 # =========================
