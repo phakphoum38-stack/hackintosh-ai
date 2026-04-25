@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import os
@@ -9,6 +9,9 @@ import uvicorn
 from backend.core.db import get_db
 from backend.core.middleware import get_current_user
 from backend.core.init_db import init_db
+
+# 🔐 AUTH ROUTER (A)
+from backend.auth.routes import router as auth_router
 
 # 📦 Models
 from backend.models.predict_log import PredictLog
@@ -29,6 +32,11 @@ app = FastAPI()
 init_db()
 
 # =========================
+# 🔥 INCLUDE AUTH ROUTER (A)
+# =========================
+app.include_router(auth_router)
+
+# =========================
 # 🔥 QUEUE INIT
 # =========================
 queue = Queue("efi", connection=redis_conn)
@@ -40,10 +48,24 @@ class PredictRequest(BaseModel):
     input_text: str
 
 # =========================
-# 🖥️ DASHBOARD UI (เพิ่มใหม่)
+# 🔄 ROOT → LOGIN (D)
 # =========================
 @app.get("/")
-def dashboard():
+def root():
+    return RedirectResponse(url="/login")
+
+# =========================
+# 🔐 LOGIN PAGE (B)
+# =========================
+@app.get("/login")
+def login_page():
+    return FileResponse("login.html")
+
+# =========================
+# 🖥️ DASHBOARD PAGE (C)
+# =========================
+@app.get("/dashboard")
+def dashboard_page():
     path = os.path.join(os.getcwd(), "dashboard.html")
     return FileResponse(path)
 
@@ -111,7 +133,6 @@ def build_efi(
     db.commit()
     db.refresh(job)
 
-    # 🔥 enqueue worker + retry
     queue.enqueue(
         build_efi_task,
         job.id,
@@ -149,7 +170,7 @@ def get_status(
     }
 
 # =========================
-# 📊 EFI HISTORY (เพิ่มใหม่)
+# 📊 EFI HISTORY
 # =========================
 @app.get("/efi/history")
 def efi_history(
@@ -172,7 +193,7 @@ def efi_history(
     ]
 
 # =========================
-# 📥 DOWNLOAD (S3 URL)
+# 📥 DOWNLOAD
 # =========================
 @app.get("/efi/download/{job_id}")
 def download_efi(
@@ -231,7 +252,7 @@ def status():
         "service": "ai-saas",
         "status": "running",
         "queue": "efi",
-        "api_version": "3.1.0"
+        "api_version": "3.2.0"
     }
 
 # =========================
