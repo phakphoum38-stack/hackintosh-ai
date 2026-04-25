@@ -1,8 +1,8 @@
 torch
-fastapi==0.110.0
-uvicorn==0.29.0
-redis==5.0.3
-numpy==1.26.4
+fastapi
+uvicorn
+redis
+numpy
 
-scikit-learn==1.4.2
-joblib==1.3.2
+scikit-learn
+joblib
