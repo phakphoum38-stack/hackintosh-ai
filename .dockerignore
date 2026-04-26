@@ -9,4 +9,6 @@ node_modules/
 
 # ❌ อย่าเอาเข้า image
 backend/model/
-EFI/
+EFI/*
+!EFI/*.plist
+!EFI/*.kext
