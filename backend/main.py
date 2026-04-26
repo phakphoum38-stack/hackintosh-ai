@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import os
 import uvicorn
+import threading
 
 # 🔐 DB + Auth
 from backend.core.db import get_db
@@ -17,32 +18,48 @@ from backend.auth.routes import router as auth_router
 from backend.models.predict_log import PredictLog
 from backend.models.efi_job import EFIJob
 
+# 🔥 task
+from backend.worker.tasks import build_efi_task
+
 # =========================
 # 🔥 REDIS MODE SWITCH
 # =========================
 REDIS_URL = os.getenv("REDIS_URL")
 USE_QUEUE = bool(REDIS_URL)
 
-if USE_QUEUE:
-    print("🚀 Running in QUEUE MODE")
-    from redis import Redis
-    from rq import Queue, Retry
-    from rq.registry import FailedJobRegistry
+queue = None
+redis_conn = None
 
-    redis_conn = Redis.from_url(REDIS_URL)
-    queue = Queue("efi", connection=redis_conn)
+if USE_QUEUE:
+    try:
+        print("🚀 Running in QUEUE MODE")
+
+        from redis import Redis
+        from rq import Queue
+
+        redis_conn = Redis.from_url(REDIS_URL)
+        queue = Queue("efi", connection=redis_conn)
+
+    except Exception as e:
+        print("❌ Redis error → fallback FREE MODE:", e)
+        USE_QUEUE = False
 else:
     print("⚠️ Running in FREE MODE (no Redis)")
-
-# 🔥 import task (ใช้ได้ทั้ง 2 mode)
-from backend.worker.tasks import build_efi_task
 
 # =========================
 # 🚀 APP INIT
 # =========================
 app = FastAPI()
 
-init_db()
+@app.on_event("startup")
+def startup():
+    print("🔥 App starting...")
+    init_db()
+
+@app.on_event("shutdown")
+def shutdown():
+    print("🛑 App shutting down...")
+
 app.include_router(auth_router)
 
 # =========================
@@ -119,7 +136,7 @@ def history(
     ]
 
 # =========================
-# 🧱 EFI BUILD (AUTO MODE)
+# 🧱 EFI BUILD
 # =========================
 @app.post("/efi/build")
 def build_efi(
@@ -137,13 +154,10 @@ def build_efi(
     db.refresh(job)
 
     # =========================
-    # 🚀 QUEUE MODE (PRO)
+    # 🚀 QUEUE MODE
     # =========================
-    if USE_QUEUE:
-        queue.enqueue(
-            build_efi_task,
-            job.id
-        )
+    if USE_QUEUE and queue:
+        queue.enqueue(build_efi_task, job.id)
 
         return {
             "job_id": job.id,
@@ -152,16 +166,24 @@ def build_efi(
         }
 
     # =========================
-    # 🚀 FREE MODE (SYNC)
+    # 🚀 FREE MODE (THREAD)
     # =========================
-    else:
-        build_efi_task(job.id)
+    def run_job():
+        try:
+            build_efi_task(job.id)
+        except Exception as e:
+            db_job = db.query(EFIJob).get(job.id)
+            db_job.status = "failed"
+            db_job.error = str(e)
+            db.commit()
 
-        return {
-            "job_id": job.id,
-            "status": "completed",
-            "mode": "sync"
-        }
+    threading.Thread(target=run_job, daemon=True).start()
+
+    return {
+        "job_id": job.id,
+        "status": "running",
+        "mode": "thread"
+    }
 
 # =========================
 # 📊 EFI STATUS
@@ -178,7 +200,7 @@ def get_status(
     ).first()
 
     if not job:
-        return {"error": "job not found"}
+        raise HTTPException(404, "job not found")
 
     return {
         "job_id": job.id,
@@ -189,30 +211,7 @@ def get_status(
     }
 
 # =========================
-# 📊 EFI HISTORY
-# =========================
-@app.get("/efi/history")
-def efi_history(
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user)
-):
-    jobs = db.query(EFIJob).filter(
-        EFIJob.user_id == user["user_id"]
-    ).order_by(EFIJob.id.desc()).all()
-
-    return [
-        {
-            "job_id": j.id,
-            "status": j.status,
-            "progress": j.progress,
-            "result": j.result_path,
-            "error": j.error
-        }
-        for j in jobs
-    ]
-
-# =========================
-# 📥 DOWNLOAD
+# 📥 DOWNLOAD (FIXED)
 # =========================
 @app.get("/efi/download/{job_id}")
 def download_efi(
@@ -226,36 +225,26 @@ def download_efi(
     ).first()
 
     if not job or not job.result_path:
-        return {"error": "file not ready"}
+        raise HTTPException(404, "file not ready")
 
-    return {
-        "download_url": job.result_path
-    }
+    if not os.path.exists(job.result_path):
+        raise HTTPException(404, "file missing")
 
-# =========================
-# 🧪 DEBUG QUEUE (SAFE)
-# =========================
-@app.get("/debug/queue")
-def debug_queue():
-    if not USE_QUEUE:
-        return {"mode": "free", "message": "queue disabled"}
-
-    from rq.registry import FailedJobRegistry
-
-    q = queue
-    failed_registry = FailedJobRegistry(queue=q)
-
-    return {
-        "waiting_jobs": q.count,
-        "failed_jobs": failed_registry.get_job_ids()
-    }
+    return FileResponse(
+        job.result_path,
+        filename="EFI.zip",
+        media_type="application/zip"
+    )
 
 # =========================
 # ❤️ HEALTH
 # =========================
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "mode": "queue" if USE_QUEUE else "free"
+    }
 
 # =========================
 # 🚀 ENTRY POINT
