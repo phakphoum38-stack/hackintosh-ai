@@ -1,16 +1,60 @@
-# backend/builder/kext_resolver.py
+def resolve_kexts(config: dict):
+    cpu = config.get("cpu", "").lower()
+    gpu = config.get("gpu", "").lower()
+    wifi = config.get("wifi", "").lower()
+    ethernet = config.get("ethernet", "").lower()
 
-def resolve_kexts(config):
+    kexts = set()
 
-    cpu = config.get("cpu", "")
-    gpu = config.get("gpu", "")
+    # =========================
+    # 🧱 Core (ต้องมีเสมอ)
+    # =========================
+    kexts.update([
+        "Lilu.kext",
+        "VirtualSMC.kext",
+        "SMCProcessor.kext",
+        "SMCSuperIO.kext"
+    ])
 
-    kexts = ["Lilu.kext", "VirtualSMC.kext"]
+    # =========================
+    # 🎮 GPU
+    # =========================
+    if "intel" in gpu or "amd" in gpu:
+        kexts.add("WhateverGreen.kext")
 
-    if "Intel" in gpu:
-        kexts.append("WhateverGreen.kext")
+    # AMD iGPU (เฉพาะบางเคส)
+    if "amd" in gpu:
+        kexts.add("NootedRed.kext")
 
-    if "AMD" in gpu:
-        kexts.append("NootedRed.kext")
+    # =========================
+    # 📶 WIFI
+    # =========================
+    if "intel" in wifi:
+        kexts.add("AirportItlwm.kext")
 
-    return kexts
+    elif "broadcom" in wifi:
+        kexts.update([
+            "AirportBrcmFixup.kext",
+            "BrcmPatchRAM3.kext"
+        ])
+
+    # =========================
+    # 🌐 Ethernet
+    # =========================
+    if "realtek" in ethernet:
+        kexts.add("RealtekRTL8111.kext")
+
+    elif "intel" in ethernet:
+        kexts.add("IntelMausi.kext")
+
+    # =========================
+    # 🔊 Audio (default)
+    # =========================
+    kexts.add("AppleALC.kext")
+
+    # =========================
+    # 🧰 USB Fix
+    # =========================
+    kexts.add("USBToolBox.kext")
+
+    return list(kexts)
