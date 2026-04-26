@@ -1,40 +1,62 @@
-# 🧱 STAGE 1: build dependencies
+# =========================
+# 🧱 STAGE 1: build deps
+# =========================
 FROM python:3.10-slim AS builder
 
-WORKDIR /app
+WORKDIR /install
 
 COPY requirements.txt .
 
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --prefix=/install/deps --no-cache-dir -r requirements.txt
 
+
+# =========================
 # 🧱 STAGE 2: runtime
+# =========================
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# copy dependency
-COPY --from=builder /usr/local/lib/python3.10 /usr/local/lib/python3.10
-COPY --from=builder /usr/local/bin /usr/local/bin
+# copy python deps
+COPY --from=builder /install/deps /usr/local
 
-# copy code
+# copy source code
 COPY backend/ backend/
+COPY worker/ worker/  # ถ้ามี worker
 
-# ✅ รับ EFI จาก pipeline
-ARG EFI_PATH=EFI
-COPY ${EFI_PATH} /app/EFI
+# =========================
+# 🧠 OPTIONAL EFI SUPPORT
+# =========================
+COPY . /tmp/build
 
-# กันพัง
-RUN mkdir -p /app/EFI
+RUN mkdir -p /app/EFI && \
+    if [ -d "/tmp/build/EFI" ]; then \
+        echo "✅ EFI found, copying..." && \
+        cp -r /tmp/build/EFI/* /app/EFI/; \
+    else \
+        echo "⚠️ No EFI found, skipping"; \
+    fi
 
-# 📦 zip EFI อัตโนมัติ
-RUN apt-get update && apt-get install -y zip \
-    && cd /app && zip -r efi.zip EFI || true
+# zip EFI ถ้ามี
+RUN apt-get update && apt-get install -y zip && \
+    cd /app && \
+    if [ "$(ls -A EFI 2>/dev/null)" ]; then \
+        zip -r efi.zip EFI; \
+    else \
+        echo "No EFI to zip"; \
+    fi
 
 ENV PYTHONPATH=.
 
-# debug
-RUN echo "📦 EFI inside container:" && ls -la /app/EFI || true
+# =========================
+# 🔀 MODE SWITCH (API / WORKER)
+# =========================
+ENV APP_MODE=api
 
-# 🚀 run API
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "\
+if [ \"$APP_MODE\" = \"worker\" ]; then \
+    python worker/worker.py; \
+else \
+    uvicorn backend.main:app --host 0.0.0.0 --port 8000; \
+fi"]
