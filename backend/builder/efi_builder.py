@@ -1,46 +1,5 @@
-import os
-import json
-import shutil
-import zipfile
-
-from backend.builder.kext_resolver import resolve_kexts
-from backend.builder.config_gen import generate_config
-
-# ☁️ S3
-from backend.core.storage import upload_file
-
-
 # =========================
-# 📁 CREATE EFI STRUCTURE
-# =========================
-def create_structure(base_path):
-
-    paths = [
-        f"{base_path}/EFI/OC",
-        f"{base_path}/EFI/OC/ACPI",
-        f"{base_path}/EFI/OC/Kexts",
-        f"{base_path}/EFI/OC/Drivers"
-    ]
-
-    for p in paths:
-        os.makedirs(p, exist_ok=True)
-
-
-# =========================
-# 📦 ZIP EFI
-# =========================
-def zip_efi(base_path, output_zip):
-
-    with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(base_path):
-            for file in files:
-                full_path = os.path.join(root, file)
-                arcname = os.path.relpath(full_path, base_path)
-                zipf.write(full_path, arcname)
-
-
-# =========================
-# 🚀 BUILD EFI (MAIN)
+# 🚀 BUILD EFI (FIXED)
 # =========================
 def build_efi(job_id: int, config: dict, user_id: int = None):
 
@@ -52,7 +11,7 @@ def build_efi(job_id: int, config: dict, user_id: int = None):
         kexts = resolve_kexts(config)
 
         print("⚙️ Generating config.plist...")
-        plist = generate_config(config, kexts)
+        config_path_tmp = generate_config(config, kexts)
 
         # =========================
         # 🧹 clean old build
@@ -63,12 +22,34 @@ def build_efi(job_id: int, config: dict, user_id: int = None):
         create_structure(base_path)
 
         # =========================
-        # 📝 write config.plist
+        # 📝 copy config.plist (FIX)
         # =========================
-        config_path = f"{base_path}/EFI/OC/config.plist"
+        final_config_path = f"{base_path}/EFI/OC/config.plist"
+        shutil.copy(config_path_tmp, final_config_path)
 
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write(str(plist))
+        # =========================
+        # 📦 FAKE KEXT (กันพัง)
+        # =========================
+        kext_dir = f"{base_path}/EFI/OC/Kexts"
+
+        for k in kexts:
+            kext_path = os.path.join(kext_dir, k)
+            os.makedirs(kext_path, exist_ok=True)
+
+            # สร้าง Info.plist dummy
+            info_path = os.path.join(kext_path, "Contents")
+            os.makedirs(info_path, exist_ok=True)
+
+            with open(os.path.join(info_path, "Info.plist"), "w") as f:
+                f.write("<plist></plist>")
+
+        # =========================
+        # 📦 DRIVER placeholder
+        # =========================
+        drivers_dir = f"{base_path}/EFI/OC/Drivers"
+
+        with open(os.path.join(drivers_dir, "OpenRuntime.efi"), "w") as f:
+            f.write("DUMMY")
 
         # =========================
         # 📦 zip output
@@ -90,7 +71,7 @@ def build_efi(job_id: int, config: dict, user_id: int = None):
 
         print(f"[✓] Uploaded to S3: {s3_url}")
 
-        return s3_url  # 🔥 ส่ง URL กลับ worker
+        return s3_url
 
     except Exception as e:
         print(f"[ERROR] EFI build failed: {e}")
