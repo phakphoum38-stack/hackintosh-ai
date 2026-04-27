@@ -1,12 +1,25 @@
-# =========================
-# 🚀 BUILD EFI (FIXED)
-# =========================
+import os
+import shutil
+
+from backend.builder.kext_resolver import resolve_kexts
+from backend.builder.config_gen import generate_config
+from backend.builder.kext_downloader import install_kexts
+from backend.builder.snapshot import snapshot_kexts_into_config
+from backend.builder.hardware import normalize_hardware
+from backend.builder.copy_base import copy_base_efi
+
+
 def build_efi(job_id: int, config: dict, user_id: int = None):
 
     base_path = f"/tmp/efi_build_{job_id}"
     output_zip = f"/tmp/efi_{job_id}.zip"
 
     try:
+        # =========================
+        # 🧠 normalize hardware
+        # =========================
+        config = normalize_hardware(config)
+
         print(f"🧠 Resolving kexts for job {job_id}...")
         kexts = resolve_kexts(config)
 
@@ -19,47 +32,38 @@ def build_efi(job_id: int, config: dict, user_id: int = None):
         if os.path.exists(base_path):
             shutil.rmtree(base_path)
 
-        create_structure(base_path)
+        os.makedirs(base_path, exist_ok=True)
 
         # =========================
-        # 📝 copy config.plist (FIX)
+        # 🧱 COPY OpenCore base (สำคัญสุด)
+        # =========================
+        copy_base_efi(base_path)
+
+        # =========================
+        # 📦 INSTALL KEXT (REAL)
+        # =========================
+        kext_dir = install_kexts(base_path, kexts)
+
+        # =========================
+        # 📝 COPY config.plist
         # =========================
         final_config_path = f"{base_path}/EFI/OC/config.plist"
         shutil.copy(config_path_tmp, final_config_path)
 
         # =========================
-        # 📦 FAKE KEXT (กันพัง)
+        # ⚙️ SNAPSHOT (sync kext → config)
         # =========================
-        kext_dir = f"{base_path}/EFI/OC/Kexts"
-
-        for k in kexts:
-            kext_path = os.path.join(kext_dir, k)
-            os.makedirs(kext_path, exist_ok=True)
-
-            # สร้าง Info.plist dummy
-            info_path = os.path.join(kext_path, "Contents")
-            os.makedirs(info_path, exist_ok=True)
-
-            with open(os.path.join(info_path, "Info.plist"), "w") as f:
-                f.write("<plist></plist>")
+        snapshot_kexts_into_config(final_config_path, kext_dir)
 
         # =========================
-        # 📦 DRIVER placeholder
-        # =========================
-        drivers_dir = f"{base_path}/EFI/OC/Drivers"
-
-        with open(os.path.join(drivers_dir, "OpenRuntime.efi"), "w") as f:
-            f.write("DUMMY")
-
-        # =========================
-        # 📦 zip output
+        # 📦 ZIP
         # =========================
         zip_efi(base_path, output_zip)
 
         print(f"[✓] EFI built locally: {output_zip}")
 
         # =========================
-        # ☁️ upload to S3
+        # ☁️ Upload to S3
         # =========================
         if user_id:
             s3_key = f"efi/{user_id}/{job_id}.zip"
