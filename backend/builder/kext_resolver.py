@@ -3,39 +3,54 @@ def resolve_kexts(config: dict):
     gpu = config.get("gpu", "").lower()
     wifi = config.get("wifi", "").lower()
     ethernet = config.get("ethernet", "").lower()
+    laptop = config.get("laptop", False)
 
     kexts = set()
 
     # =========================
-    # 🧱 Core (ต้องมีเสมอ)
+    # 🧱 Core (ต้องมี)
     # =========================
     kexts.update([
         "Lilu.kext",
         "VirtualSMC.kext",
         "SMCProcessor.kext",
-        "SMCSuperIO.kext"
+        "SMCSuperIO.kext",
+        "WhateverGreen.kext"
     ])
+
+    # =========================
+    # 💻 Laptop only
+    # =========================
+    if laptop:
+        kexts.add("SMCBatteryManager.kext")
+
+    # =========================
+    # 🧠 CPU (AMD Fix)
+    # =========================
+    if "amd" in cpu:
+        kexts.add("AppleMCEReporterDisabler.kext")
 
     # =========================
     # 🎮 GPU
     # =========================
-    if "intel" in gpu or "amd" in gpu:
-        kexts.add("WhateverGreen.kext")
-
-    # AMD iGPU (เฉพาะบางเคส)
-    if "amd" in gpu:
+    if "amd apu" in gpu or "vega" in gpu:
+        # AMD iGPU (Ryzen APU)
         kexts.add("NootedRed.kext")
+
+    # Intel iGPU → WhateverGreen พอแล้ว
 
     # =========================
     # 📶 WIFI
     # =========================
     if "intel" in wifi:
+        # เลือกตาม macOS version ภายนอก
         kexts.add("AirportItlwm.kext")
 
     elif "broadcom" in wifi:
         kexts.update([
             "AirportBrcmFixup.kext",
-            "BrcmPatchRAM3.kext"
+            "BrcmPatchRAM3.kext",
+            "BrcmFirmwareData.kext"
         ])
 
     # =========================
@@ -48,13 +63,16 @@ def resolve_kexts(config: dict):
         kexts.add("IntelMausi.kext")
 
     # =========================
-    # 🔊 Audio (default)
+    # 🔊 Audio
     # =========================
     kexts.add("AppleALC.kext")
 
     # =========================
-    # 🧰 USB Fix
+    # 🔌 USB
     # =========================
-    kexts.add("USBToolBox.kext")
+    kexts.update([
+        "USBToolBox.kext",
+        "UTBMap.kext"
+    ])
 
-    return list(kexts)
+    return sorted(list(kexts))
