@@ -1,8 +1,8 @@
-from backend.core.hardware_scanner import scan_hardware
-from backend.core.cpu_patch import patch_cpu
-from backend.core.gpu_patch import patch_gpu
-from backend.core.config_generator import generate_config
-from backend.core.efi_builder import build_efi
+from core.hardware_scanner import scan_hardware
+from core.cpu_patch import patch_cpu
+from core.gpu_patch import patch_gpu
+from core.config_generator import generate_config
+from core.efi_builder import build_efi
 
 def main():
 
