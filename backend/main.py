@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import platform
 import socket
 import os
+import subprocess
 
 app = FastAPI(title="Hackintosh AI API")
 
@@ -61,3 +62,62 @@ def analyze(data: ScanResult):
         "compatible": True,
         "received": data.dict()
     }
+
+
+# =========================
+# CPU INFO
+# =========================
+
+@app.get("/cpu")
+def cpu_info():
+
+    return {
+        "processor": platform.processor(),
+        "cores": os.cpu_count()
+    }
+
+
+# =========================
+# MEMORY INFO
+# =========================
+
+@app.get("/memory")
+def memory_info():
+
+    try:
+        result = subprocess.check_output(
+            "free -h",
+            shell=True
+        ).decode()
+
+        return {
+            "memory": result
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
+
+
+# =========================
+# DISK INFO
+# =========================
+
+@app.get("/disks")
+def disk_info():
+
+    try:
+        result = subprocess.check_output(
+            "lsblk -o NAME,SIZE,TYPE",
+            shell=True
+        ).decode()
+
+        return {
+            "disks": result
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
