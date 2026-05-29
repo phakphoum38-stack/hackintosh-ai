@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hackintosh AI</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #111;
+            color: white;
+            padding: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+
+        pre {
+            background: #222;
+            padding: 15px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Hackintosh AI Scanner</h1>
+
+    <button onclick="scanHardware()">
+        Scan Hardware
+    </button>
+
+    <h2>Result</h2>
+
+    <pre id="output">
+Waiting...
+    </pre>
+
+    <script>
+
+        async function scanHardware() {
+
+            try {
+
+                const response = await fetch(
+                    "http://127.0.0.1:8000/scan"
+                )
+
+                const data = await response.json()
+
+                document.getElementById("output")
+                    .textContent =
+                    JSON.stringify(data, null, 2)
+
+            }
+
+            catch(error) {
+
+                document.getElementById("output")
+                    .textContent =
+                    error
+
+            }
+
+        }
+
+    </script>
+
+</body>
+</html>
