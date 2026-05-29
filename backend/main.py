@@ -52,3 +52,4 @@ def scan_hardware():
         "gpu": gpu,
 
         "ram": ram,
+    }
