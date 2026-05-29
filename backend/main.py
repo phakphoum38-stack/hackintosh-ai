@@ -1,62 +1,63 @@
-import platform
-import subprocess
-import os
 from fastapi import FastAPI
+from pydantic import BaseModel
+import platform
+import socket
+import os
 
-app = FastAPI()
+app = FastAPI(title="Hackintosh AI API")
+
+
+# =========================
+# MODELS
+# =========================
+
+class ScanResult(BaseModel):
+    cpu: str
+    hostname: str
+    system: str
+
+
+# =========================
+# ROUTES
+# =========================
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
-
-def run(cmd):
-
-    try:
-        return subprocess.check_output(
-            cmd,
-            shell=True
-        ).decode().strip()
-
-    except:
-        return "Unknown"
-
-def scan_hardware():
-
-    system = platform.system()
-
-    if system == "Windows":
-
-        gpu = run(
-            "wmic path win32_VideoController get name"
-        )
-
-        ram = run(
-            "wmic MemoryChip get Capacity"
-        )
-
-        disk = run(
-            "wmic diskdrive get model"
-        )
-
-        wifi = run(
-            "netsh wlan show drivers"
-        )
-
-    else:
-
-        gpu = run("lspci | grep VGA")
-        ram = run("free -h")
-        disk = run("lsblk")
-        wifi = run("iwconfig")
-
     return {
+        "status": "online",
+        "project": "Hackintosh AI"
+    }
 
-        "os": system,
 
-        "cpu":
-        platform.processor(),
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy"
+    }
 
-        "gpu": gpu,
 
-        "ram": ram,
+@app.get("/system")
+def system_info():
+    return {
+        "os": platform.system(),
+        "release": platform.release(),
+        "machine": platform.machine(),
+        "processor": platform.processor()
+    }
+
+
+@app.get("/scan")
+def scan_hardware():
+    return {
+        "cpu": platform.processor(),
+        "hostname": socket.gethostname(),
+        "system": platform.system()
+    }
+
+
+@app.post("/analyze")
+def analyze(data: ScanResult):
+    return {
+        "compatible": True,
+        "received": data.dict()
     }
