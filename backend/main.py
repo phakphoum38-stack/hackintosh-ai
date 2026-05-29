@@ -1,6 +1,13 @@
 import platform
 import subprocess
 import os
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
 
 def run(cmd):
 
