@@ -21,4 +21,5 @@ jobs:
         run: pip install -r backend/requirements.txt
 
       - name: Run Builder
-        run: python -m backend.main
+        working-directory: backend
+        run: python main.py
