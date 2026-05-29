@@ -1,27 +1,54 @@
-from core.hardware_scanner import scan_hardware
-from core.cpu_patch import patch_cpu
-from core.gpu_patch import patch_gpu
-from core.config_generator import generate_config
-from core.efi_builder import build_efi
+import platform
+import subprocess
+import os
 
-def main():
+def run(cmd):
 
-    print("🚀 Hackintosh AI Builder")
+    try:
+        return subprocess.check_output(
+            cmd,
+            shell=True
+        ).decode().strip()
 
-    hardware = scan_hardware()
+    except:
+        return "Unknown"
 
-    cpu_patch = patch_cpu(hardware)
-    gpu_patch = patch_gpu(hardware)
+def scan_hardware():
 
-    config = generate_config(
-        hardware,
-        cpu_patch,
-        gpu_patch
-    )
+    system = platform.system()
 
-    build_efi(config)
+    if system == "Windows":
 
-    print("✅ EFI CREATED")
+        gpu = run(
+            "wmic path win32_VideoController get name"
+        )
 
-if __name__ == "__main__":
-    main()
+        ram = run(
+            "wmic MemoryChip get Capacity"
+        )
+
+        disk = run(
+            "wmic diskdrive get model"
+        )
+
+        wifi = run(
+            "netsh wlan show drivers"
+        )
+
+    else:
+
+        gpu = run("lspci | grep VGA")
+        ram = run("free -h")
+        disk = run("lsblk")
+        wifi = run("iwconfig")
+
+    return {
+
+        "os": system,
+
+        "cpu":
+        platform.processor(),
+
+        "gpu": gpu,
+
+        "ram": ram,
